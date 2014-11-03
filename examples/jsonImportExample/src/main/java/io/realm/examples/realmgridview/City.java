@@ -14,18 +14,29 @@
  * limitations under the License.
  */
 
-package io.realm.exceptions;
+package io.realm.examples.realmgridview;
 
-/**
- * RealmException is Realm specific exceptions.
- */
-public class RealmException extends RuntimeException {
+import io.realm.RealmObject;
 
-    public RealmException(String detailMessage) {
-        super(detailMessage);
+public class City extends RealmObject {
+
+    private String name;
+    private long votes;
+
+    public String getName() {
+        return name;
     }
 
-    public RealmException(String detailMessage, Throwable exception) {
-        super(detailMessage, exception);
+    public void setName(String name) {
+        this.name = name;
     }
+
+    public long getVotes() {
+        return votes;
+    }
+
+    public void setVotes(long votes) {
+        this.votes = votes;
+    }
+
 }

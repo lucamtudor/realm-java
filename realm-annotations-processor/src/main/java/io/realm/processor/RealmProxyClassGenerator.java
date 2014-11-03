@@ -18,6 +18,16 @@ package io.realm.processor;
 
 import com.squareup.javawriter.JavaWriter;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.VariableElement;
@@ -26,10 +36,6 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.JavaFileObject;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.lang.String;
-import java.util.*;
 
 public class RealmProxyClassGenerator {
     private ProcessingEnvironment processingEnvironment;
@@ -40,6 +46,11 @@ public class RealmProxyClassGenerator {
     private static final String REALM_PACKAGE_NAME = "io.realm";
     private static final String TABLE_PREFIX = "class_";
     private static final String PROXY_SUFFIX = "RealmProxy";
+
+    private Elements elementUtils;
+    private Types typeUtils;
+    private TypeMirror realmObject;
+    private DeclaredType realmList;
 
     public RealmProxyClassGenerator(ProcessingEnvironment processingEnvironment, String className, String packageName, List<VariableElement> fields, List<VariableElement> fieldsToIndex) {
         this.processingEnvironment = processingEnvironment;
@@ -200,26 +211,32 @@ public class RealmProxyClassGenerator {
         JavaFileObject sourceFile = processingEnvironment.getFiler().createSourceFile(qualifiedGeneratedClassName);
         JavaWriter writer = new JavaWriter(new BufferedWriter(sourceFile.openWriter()));
 
-        Elements elementUtils = processingEnvironment.getElementUtils();
-        Types typeUtils = processingEnvironment.getTypeUtils();
+        elementUtils = processingEnvironment.getElementUtils();
+        typeUtils = processingEnvironment.getTypeUtils();
 
-        TypeMirror realmObject = elementUtils.getTypeElement("io.realm.RealmObject").asType();
-        DeclaredType realmList = typeUtils.getDeclaredType(elementUtils.getTypeElement("io.realm.RealmList"), typeUtils.getWildcardType(null, null));
+        realmObject = elementUtils.getTypeElement("io.realm.RealmObject").asType();
+        realmList = typeUtils.getDeclaredType(elementUtils.getTypeElement("io.realm.RealmList"), typeUtils.getWildcardType(null, null));
 
         // Set source code indent to 4 spaces
         writer.setIndent("    ");
 
         writer.emitPackage(REALM_PACKAGE_NAME)
                 .emitEmptyLine();
-
         writer.emitImports(
                 "io.realm.internal.ColumnType",
                 "io.realm.internal.Table",
                 "io.realm.internal.ImplicitTransaction",
                 "io.realm.internal.Row",
                 "io.realm.internal.LinkView",
+                "io.realm.internal.json.JsonUtils",
                 "io.realm.RealmList",
                 "io.realm.RealmObject",
+                "org.json.JSONObject",
+                "org.json.JSONException",
+                "org.json.JSONArray",
+                "android.util.JsonReader",
+                "android.util.JsonToken",
+                "java.io.IOException",
                 "java.util.*",
                 packageName + ".*")
                 .emitEmptyLine();
@@ -604,9 +621,103 @@ public class RealmProxyClassGenerator {
         writer.endMethod();
         writer.emitEmptyLine();
 
+        // Add JSON methods
+        emitPopulateUsingJsonObjectMethod(writer);
+        emitPopulateUsingJsonStreamMethod(writer);
+
         // End the class definition
         writer.endType();
         writer.close();
+    }
+
+    private void emitPopulateUsingJsonObjectMethod(JavaWriter writer) throws IOException {
+        writer.emitAnnotation(Override.class);
+        writer.beginMethod(
+                "void",
+                "populateUsingJsonObject",
+                EnumSet.of(Modifier.PROTECTED),
+                Arrays.asList("JSONObject", "json"),
+                Arrays.asList("JSONException"));
+
+        for (VariableElement field : fields) {
+            String fieldName = field.getSimpleName().toString();
+            String fieldTypeCanonicalName = field.asType().toString();
+            if (typeUtils.isAssignable(field.asType(), realmObject)) {
+                RealmJsonTypeHelper.emitFillRealmObjectWithJsonValue(
+                        fieldName,
+                        fieldTypeCanonicalName,
+                        writer);
+
+            } else if (typeUtils.isAssignable(field.asType(), realmList)) {
+                RealmJsonTypeHelper.emitFillRealmListWithJsonValue(
+                        fieldName,
+                        ((DeclaredType) field.asType()).getTypeArguments().get(0).toString(),
+                        writer);
+
+            } else {
+                RealmJsonTypeHelper.emitFillJavaTypeWithJsonValue(
+                        fieldName,
+                        fieldTypeCanonicalName,
+                        writer);
+            }
+
+        }
+
+        writer.endMethod();
+        writer.emitEmptyLine();
+    }
+
+    private void emitPopulateUsingJsonStreamMethod(JavaWriter writer) throws IOException {
+        writer.emitAnnotation(Override.class);
+        writer.beginMethod(
+                "void",
+                "populateUsingJsonStream",
+                EnumSet.of(Modifier.PROTECTED),
+                Arrays.asList("JsonReader", "reader"),
+                Arrays.asList("IOException"));
+
+        writer.emitStatement("reader.beginObject()");
+        writer.beginControlFlow("while (reader.hasNext())");
+        writer.emitStatement("String name = reader.nextName()");
+
+        for (int i = 0; i < fields.size(); i++) {
+            VariableElement field = fields.get(i);
+            String fieldName = field.getSimpleName().toString();
+            String fieldTypeCanonicalName = field.asType().toString();
+
+            if (i == 0) {
+                writer.beginControlFlow("if (name.equals(\"%s\") && reader.peek() != JsonToken.NULL)", fieldName);
+            } else {
+                writer.nextControlFlow("else if (name.equals(\"%s\")  && reader.peek() != JsonToken.NULL)", fieldName);
+            }
+
+            if (typeUtils.isAssignable(field.asType(), realmObject)) {
+                RealmJsonTypeHelper.emitFillRealmObjectFromStream(
+                        fieldName,
+                        fieldTypeCanonicalName,
+                        writer);
+
+            } else if (typeUtils.isAssignable(field.asType(), realmList)) {
+                RealmJsonTypeHelper.emitFillRealmListFromStream(
+                        fieldName,
+                        ((DeclaredType) field.asType()).getTypeArguments().get(0).toString(),
+                        writer);
+
+            } else {
+                RealmJsonTypeHelper.emitFillJavaTypeFromStream(
+                        fieldName,
+                        fieldTypeCanonicalName,
+                        writer);
+            }
+        }
+
+        writer.nextControlFlow("else");
+        writer.emitStatement("reader.skipValue()");
+        writer.endControlFlow();
+        writer.endControlFlow();
+        writer.emitStatement("reader.endObject()");
+        writer.endMethod();
+        writer.emitEmptyLine();
     }
 
     private static String capitaliseFirstChar(String input) {

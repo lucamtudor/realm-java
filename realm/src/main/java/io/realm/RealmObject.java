@@ -16,8 +16,16 @@
 
 package io.realm;
 
-import io.realm.internal.Row;
+import android.util.JsonReader;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.IOException;
+import java.io.InputStream;
+
 import io.realm.annotations.RealmClass;
+import io.realm.internal.Row;
 
 /**
  * In Realm you define your model classes by sub-classing RealmObject and adding fields to be
@@ -51,5 +59,13 @@ public abstract class RealmObject {
             throw new IllegalStateException("Object malformed: missing Realm. Make sure to instantiate RealmObjects with Realm.createObject()");
         }
         row.getTable().remove(row.getIndex());
+    }
+
+    protected void populateUsingJsonObject(JSONObject json) throws JSONException {
+        throw new IllegalStateException("Only use this method on objects created or fetched in a Realm. Realm.createObject() or Realm.where()");
+    }
+
+    protected void populateUsingJsonStream(JsonReader json) throws IOException {
+        throw new IllegalStateException("Only use this method on objects created or fetched in a Realm. Realm.createObject() or Realm.where()");
     }
 }

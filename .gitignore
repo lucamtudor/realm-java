@@ -22,6 +22,7 @@ core-*
 */.DS_Store
 
 # JNI libs
+realm_version_check.timestamp
 /realm/src/main/jniLibs
 
 # Build artifacts
@@ -45,3 +46,4 @@ distribution/version.txt
 distribution/RealmGridViewExample/app/src
 distribution/RealmIntroExample/app/src
 distribution/RealmMigrationExample/app/src
+
