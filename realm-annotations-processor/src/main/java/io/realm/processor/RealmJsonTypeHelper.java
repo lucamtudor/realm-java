@@ -81,7 +81,7 @@ public class RealmJsonTypeHelper {
     public static void emitFillRealmObjectWithJsonValue(String fieldName, String fieldTypeCanonicalName, JavaWriter writer) throws IOException {
         writer
             .beginControlFlow("if (json.has(\"%s\"))", fieldName)
-                .emitStatement("%s obj = getRealm().createObject(%s.class)", fieldTypeCanonicalName, fieldTypeCanonicalName)
+                .emitStatement("%s obj = realm.createObject(%s.class)", fieldTypeCanonicalName, fieldTypeCanonicalName)
                 .emitStatement("obj.populateUsingJsonObject(json.getJSONObject(\"%s\"))", fieldName)
                 .emitStatement("set%s(obj)", capitaliseFirstChar(fieldName))
             .endControlFlow();
@@ -92,7 +92,7 @@ public class RealmJsonTypeHelper {
             .beginControlFlow("if (json.has(\"%s\"))", fieldName)
                 .emitStatement("JSONArray array = json.getJSONArray(\"%s\")", fieldName)
                 .beginControlFlow("for (int i = 0; i < array.length(); i++)")
-                    .emitStatement("%s obj = getRealm().createObject(%s.class)", fieldTypeCanonicalName, fieldTypeCanonicalName)
+                    .emitStatement("%s obj = realm.createObject(%s.class)", fieldTypeCanonicalName, fieldTypeCanonicalName)
                     .emitStatement("obj.populateUsingJsonObject(array.getJSONObject(i))")
                     .emitStatement("get%s().add(obj)", capitaliseFirstChar(fieldName))
                 .endControlFlow()
@@ -108,7 +108,7 @@ public class RealmJsonTypeHelper {
 
     public static void emitFillRealmObjectFromStream(String fieldName, String fieldTypeCanonicalName, JavaWriter writer) throws IOException {
         writer
-            .emitStatement("%s obj = getRealm().createObject(%s.class)", fieldTypeCanonicalName, fieldTypeCanonicalName)
+            .emitStatement("%s obj = realm.createObject(%s.class)", fieldTypeCanonicalName, fieldTypeCanonicalName)
             .emitStatement("obj.populateUsingJsonStream(reader)", fieldName)
             .emitStatement("set%s(obj)", capitaliseFirstChar(fieldName));
     }
@@ -117,7 +117,7 @@ public class RealmJsonTypeHelper {
         writer
             .emitStatement("reader.beginArray()")
             .beginControlFlow("while (reader.hasNext())")
-                .emitStatement("%s obj = getRealm().createObject(%s.class)", fieldTypeCanonicalName, fieldTypeCanonicalName)
+                .emitStatement("%s obj = realm.createObject(%s.class)", fieldTypeCanonicalName, fieldTypeCanonicalName)
                 .emitStatement("obj.populateUsingJsonStream(reader)")
                 .emitStatement("get%s().add(obj)", capitaliseFirstChar(fieldName))
             .endControlFlow()
